@@ -188,6 +188,20 @@ extern "C"
     LibRaw *ip = (LibRaw *)lr->parent_class;
     ip->set_progress_handler(cb, data);
   }
+  void libraw_set_pre_identify_handler(libraw_data_t *lr, pre_identify_callback cb, void *cb_data)
+  {
+    if (!lr)
+      return;
+    LibRaw *ip = (LibRaw *)lr->parent_class;
+    ip->set_pre_identify_handler(cb, cb_data);
+  }
+  void libraw_set_process_step_handler(libraw_data_t *lr, enum LibRaw_callbacks cb_type, process_step_callback cb, void *cb_data)
+  {
+    if (!lr)
+      return;
+    LibRaw *ip = (LibRaw *)lr->parent_class;
+    ip->set_process_step_handler(cb_type, cb, cb_data);
+  }
 
   // DCRAW
   int libraw_adjust_sizes_info_only(libraw_data_t *lr)

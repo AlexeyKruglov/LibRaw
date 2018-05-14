@@ -73,6 +73,8 @@ extern "C"
   DllDef void libraw_set_exifparser_handler(libraw_data_t *, exif_parser_callback cb, void *datap);
   DllDef void libraw_set_dataerror_handler(libraw_data_t *, data_callback func, void *datap);
   DllDef void libraw_set_progress_handler(libraw_data_t *, progress_callback cb, void *datap);
+  DllDef void libraw_set_pre_identify_handler(libraw_data_t *lr, pre_identify_callback cb, void *cb_data);
+  DllDef void libraw_set_process_step_handler(libraw_data_t *lr, enum LibRaw_callbacks cb_type, process_step_callback cb, void *cb_data);
   DllDef const char *libraw_unpack_function_name(libraw_data_t *lr);
   DllDef int libraw_get_decoder_info(libraw_data_t *lr, libraw_decoder_info_t *d);
   DllDef int libraw_COLOR(libraw_data_t *, int row, int col);
@@ -156,15 +158,28 @@ public:
     callbacks.memcb_data = data;
     callbacks.mem_cb = cb;
   }
-  void set_dataerror_handler(data_callback func, void *data)
+  void set_dataerror_handler(data_callback cb, void *data)
   {
     callbacks.datacb_data = data;
-    callbacks.data_cb = func;
+    callbacks.data_cb = cb;
   }
-  void set_progress_handler(progress_callback pcb, void *data)
+  void set_progress_handler(progress_callback cb, void *data)
   {
     callbacks.progresscb_data = data;
-    callbacks.progress_cb = pcb;
+    callbacks.progress_cb = cb;
+  }
+
+  inline void set_pre_identify_handler(pre_identify_callback cb, void *cb_data)
+  {
+    callbacks.pre_identify.data = cb_data;
+    callbacks.pre_identify.cb = cb;
+  }
+  inline void set_process_step_handler(enum LibRaw_callbacks cb_type, process_step_callback cb, void *cb_data)
+  {
+    if (cb_type < 0 || cb_type >= LIBRAW_CALLBACK_TOTAL)
+      throw LIBRAW_EXCEPTION_BAD_PARAMETER;
+    callbacks.process_step[cb_type].data = cb_data;
+    callbacks.process_step[cb_type].cb = cb;
   }
 
   void convertFloatToInt(float dmin = 4096.f, float dmax = 32767.f, float dtarget = 16383.f);
@@ -286,6 +301,7 @@ protected:
   tiff_ifd_t tiff_ifd[LIBRAW_IFD_MAXCOUNT];
   libraw_memmgr memmgr;
   libraw_callbacks_t callbacks;
+  bool process_callback(enum LibRaw_callbacks cb_type);
 
   LibRaw_constants rgb_constants;
 

@@ -125,40 +125,6 @@ typedef unsigned long long UINT64;
     ushort fuji_width;
   } libraw_internal_output_params_t;
 
-  typedef void (*memory_callback)(void *data, const char *file, const char *where);
-  typedef void (*exif_parser_callback)(void *context, int tag, int type, int len, unsigned int ord, void *ifp);
-
-  DllDef void default_memory_callback(void *data, const char *file, const char *where);
-
-  typedef void (*data_callback)(void *data, const char *file, const int offset);
-
-  DllDef void default_data_callback(void *data, const char *file, const int offset);
-
-  typedef int (*progress_callback)(void *data, enum LibRaw_progress stage, int iteration, int expected);
-  typedef int (*pre_identify_callback)(void *ctx);
-  typedef void (*post_identify_callback)(void *ctx);
-  typedef void (*process_step_callback)(void *ctx);
-
-  typedef struct
-  {
-    memory_callback mem_cb;
-    void *memcb_data;
-
-    data_callback data_cb;
-    void *datacb_data;
-
-    progress_callback progress_cb;
-    void *progresscb_data;
-
-    exif_parser_callback exif_cb;
-    void *exifparser_data;
-    pre_identify_callback pre_identify_cb;
-    post_identify_callback post_identify_cb;
-    process_step_callback pre_subtractblack_cb, pre_scalecolors_cb, pre_preinterpolate_cb, pre_interpolate_cb,
-			interpolate_bayer_cb, interpolate_xtrans_cb,
-		     	post_interpolate_cb, pre_converttorgb_cb, post_converttorgb_cb;
-  } libraw_callbacks_t;
-
   typedef struct
   {
     enum LibRaw_image_formats type;
@@ -750,6 +716,45 @@ typedef unsigned long long UINT64;
     int maxDiff;
     ushort line_width;
   };
+
+
+  typedef void (*memory_callback)(void *data, const char *file, const char *where);
+  typedef void (*exif_parser_callback)(void *context, int tag, int type, int len, unsigned int ord, void *ifp);
+
+  DllDef void default_memory_callback(void *data, const char *file, const char *where);
+
+  typedef void (*data_callback)(void *data, const char *file, const int offset);
+
+  DllDef void default_data_callback(void *data, const char *file, const int offset);
+
+  typedef int (*progress_callback)(void *data, enum LibRaw_progress stage, int iteration, int expected);
+  typedef int (*pre_identify_callback)(libraw_data_t *lr_data, void *cb_data);
+  typedef void (*process_step_callback)(libraw_data_t *lr_data, void *cb_data);
+  typedef struct {
+    pre_identify_callback cb;
+    void *data;
+  } pre_identify_callback_t;
+  typedef struct {
+    process_step_callback cb;
+    void *data;
+  } process_step_callback_t;
+
+  typedef struct
+  {
+    memory_callback mem_cb;
+    void *memcb_data;
+
+    data_callback data_cb;
+    void *datacb_data;
+
+    progress_callback progress_cb;
+    void *progresscb_data;
+
+    exif_parser_callback exif_cb;
+    void *exifparser_data;
+    pre_identify_callback_t pre_identify;
+    process_step_callback_t process_step[LIBRAW_CALLBACK_TOTAL];
+  } libraw_callbacks_t;
 
 #ifdef __cplusplus
 }

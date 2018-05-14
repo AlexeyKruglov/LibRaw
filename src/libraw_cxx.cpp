@@ -441,13 +441,6 @@ LibRaw::LibRaw(unsigned int flags) : memmgr(1024)
 #endif
   callbacks.mem_cb = (flags & LIBRAW_OPIONS_NO_MEMERR_CALLBACK) ? NULL : &default_memory_callback;
   callbacks.data_cb = (flags & LIBRAW_OPIONS_NO_DATAERR_CALLBACK) ? NULL : &default_data_callback;
-  callbacks.exif_cb = NULL; // no default callback
-  callbacks.pre_identify_cb = NULL;
-  callbacks.post_identify_cb = NULL;
-  callbacks.pre_subtractblack_cb = callbacks.pre_scalecolors_cb = callbacks.pre_preinterpolate_cb
-    = callbacks.pre_interpolate_cb = callbacks.interpolate_bayer_cb = callbacks.interpolate_xtrans_cb
-    = callbacks.post_interpolate_cb = callbacks.pre_converttorgb_cb = callbacks.post_converttorgb_cb 
-  = NULL;
 
   memmove(&imgdata.params.aber, &aber, sizeof(aber));
   memmove(&imgdata.params.gamm, &gamm, sizeof(gamm));
@@ -1979,6 +1972,15 @@ struct foveon_data_t
 };
 const int foveon_count = sizeof(foveon_data) / sizeof(foveon_data[0]);
 
+bool LibRaw::process_callback(enum LibRaw_callbacks cb_type) {
+  if (cb_type < 0 || cb_type >= LIBRAW_CALLBACK_TOTAL)
+    throw LIBRAW_EXCEPTION_INTERNAL_ERROR;
+  bool have_cb = callbacks.process_step[cb_type].cb != NULL;
+  if (have_cb)
+    (callbacks.process_step[cb_type].cb)(&imgdata, callbacks.process_step[cb_type].data);
+  return have_cb;
+}
+
 int LibRaw::open_datastream(LibRaw_abstract_datastream *stream)
 {
 
@@ -1987,9 +1989,9 @@ int LibRaw::open_datastream(LibRaw_abstract_datastream *stream)
   if (!stream->valid())
     return LIBRAW_IO_ERROR;
   recycle();
-  if(callbacks.pre_identify_cb)
+  if(callbacks.pre_identify.cb)
   {
-    int r = (callbacks.pre_identify_cb)(this);
+    int r = (callbacks.pre_identify.cb)(&(this->imgdata), callbacks.pre_identify.data);
     if(r == 1) goto final;
   }
 
@@ -2000,8 +2002,7 @@ int LibRaw::open_datastream(LibRaw_abstract_datastream *stream)
     SET_PROC_FLAG(LIBRAW_PROGRESS_OPEN);
 
     identify();
-    if(callbacks.post_identify_cb)
-	(callbacks.post_identify_cb)(this);
+    process_callback(LIBRAW_CALLBACK_POST_IDENTIFY);
 
 #if 0
     if(!strcasecmp(imgdata.idata.make, "Sony")
@@ -4805,10 +4806,9 @@ int LibRaw::dcraw_process(void)
       subtract(O.dark_frame);
       SET_PROC_FLAG(LIBRAW_PROGRESS_DARK_FRAME);
     }
-    /* pre subtract black callback: check for it above to disable subtract inline */
 
-    if(callbacks.pre_subtractblack_cb)
-	(callbacks.pre_subtractblack_cb)(this);
+    /* pre subtract black callback: check for it above to disable subtract inline */
+    process_callback(LIBRAW_CALLBACK_PRE_SUBTRACT);
 
     quality = 2 + !IO.fuji_width;
 
@@ -4844,8 +4844,7 @@ int LibRaw::dcraw_process(void)
       green_matching();
     }
 
-    if(callbacks.pre_scalecolors_cb)
-	(callbacks.pre_scalecolors_cb)(this);
+    process_callback(LIBRAW_CALLBACK_PRE_SCALECOLORS);
 
     if (!O.no_auto_scale)
     {
@@ -4853,8 +4852,7 @@ int LibRaw::dcraw_process(void)
       SET_PROC_FLAG(LIBRAW_PROGRESS_SCALE_COLORS);
     }
 
-    if(callbacks.pre_preinterpolate_cb)
-	(callbacks.pre_preinterpolate_cb)(this);
+    process_callback(LIBRAW_CALLBACK_PRE_PREINTERPOLATE);
 
     pre_interpolate();
 
@@ -4876,8 +4874,7 @@ int LibRaw::dcraw_process(void)
       exp_bef(expos, preser);
     }
 
-    if(callbacks.pre_interpolate_cb)
-	(callbacks.pre_interpolate_cb)(this);
+    process_callback(LIBRAW_CALLBACK_PRE_INTERPOLATE);
 
     /* post-exposure correction fallback */
     if (P1.filters && !O.no_interpolation)
@@ -4885,10 +4882,10 @@ int LibRaw::dcraw_process(void)
       if (noiserd > 0 && P1.colors == 3 && P1.filters)
         fbdd(noiserd);
 
-      if (P1.filters > 1000 && callbacks.interpolate_bayer_cb)
-        (callbacks.interpolate_bayer_cb)(this);
-      else if (P1.filters == 9 && callbacks.interpolate_xtrans_cb)
-        (callbacks.interpolate_xtrans_cb)(this);
+      if (P1.filters > 1000 && process_callback(LIBRAW_CALLBACK_INTERPOLATE_BAYER))
+        ;  // the callback is already processed inside if condition
+      else if (P1.filters == 9 && process_callback(LIBRAW_CALLBACK_INTERPOLATE_XTRANS))
+        ;  // the callback is already processed inside if condition
       else if (quality == 0)
         lin_interpolate();
       else if (quality == 1 || P1.colors > 3)
@@ -4925,8 +4922,7 @@ int LibRaw::dcraw_process(void)
       SET_PROC_FLAG(LIBRAW_PROGRESS_MIX_GREEN);
     }
 
-    if(callbacks.post_interpolate_cb)
-	(callbacks.post_interpolate_cb)(this);
+    process_callback(LIBRAW_CALLBACK_POST_INTERPOLATE);
 
     if (!P1.is_foveon)
     {
@@ -4971,14 +4967,12 @@ int LibRaw::dcraw_process(void)
     }
 #endif
 
-    if(callbacks.pre_converttorgb_cb)
-	(callbacks.pre_converttorgb_cb)(this);
+    process_callback(LIBRAW_CALLBACK_PRE_CONVERT_RGB);
 
     convert_to_rgb();
     SET_PROC_FLAG(LIBRAW_PROGRESS_CONVERT_RGB);
 
-    if(callbacks.post_converttorgb_cb)
-	(callbacks.post_converttorgb_cb)(this);
+    process_callback(LIBRAW_CALLBACK_POST_CONVERT_RGB);
 
     if (O.use_fuji_rotate)
     {
